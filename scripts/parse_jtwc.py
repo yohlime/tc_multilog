@@ -14,6 +14,8 @@ def knots_to_cat(wind_speed):
     Output:
     cat (str) -- TC category
     """
+    if wind_speed != wind_speed:
+        return ''
     cat = ''
     if wind_speed < 15:
         cat = ''
@@ -136,7 +138,7 @@ def proc_tc_data(tc_code):
         out_file = open(out_file_name, 'w')
         out_file.write(r.text)
         out_file.close()
-        
+
         forecast_df = pd.DataFrame(columns=['Center', 'Date', 'Lat', 'Lon', 'Vmax', 'Cat', 'R34', 'R50', 'R64'])
         res = re.sub('\s+', ' ', r.text).strip()
         res1 = re.search('WARNING\ POSITION(.*)FORECASTS', res).group(1)

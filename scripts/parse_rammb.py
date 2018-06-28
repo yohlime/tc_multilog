@@ -14,6 +14,8 @@ def knots_to_cat(wind_speed):
     Output:
     cat (str) -- TC category
     """
+    if wind_speed != wind_speed:
+        return ''
     cat = ''
     if wind_speed < 15:
         cat = ''
