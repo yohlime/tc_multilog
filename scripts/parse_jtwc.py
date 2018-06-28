@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import argparse
 
+
 def knots_to_cat(wind_speed):
     """Converts wind speed in knots to equivalent tropical cyclone category
     based on Saffir-Simpson scale
@@ -131,6 +132,11 @@ def proc_tc_data(tc_code):
 
     r = requests.get(url)
     if (r.status_code == 200):
+        out_file_name = 'output/multi/{}web_{}.txt'.format(tc_code, pd.datetime.now().strftime('%Y%m%d_%H00'))
+        out_file = open(out_file_name, 'w')
+        out_file.write(r.text)
+        out_file.close()
+        
         forecast_df = pd.DataFrame(columns=['Center', 'Date', 'Lat', 'Lon', 'Vmax', 'Cat', 'R34', 'R50', 'R64'])
         res = re.sub('\s+', ' ', r.text).strip()
         res1 = re.search('WARNING\ POSITION(.*)FORECASTS', res).group(1)
