@@ -4,6 +4,8 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import argparse
 
+BASE_URL = 'http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp?storm_identifier='
+
 def knots_to_cat(wind_speed):
     """Converts wind speed in knots to equivalent tropical cyclone category
     based on Saffir-Simpson scale
@@ -46,8 +48,11 @@ def knots_to_kph(wind_speed):
     """
     return wind_speed * 1.852
 
-def proc_tc_data(tc_code):
-    url = 'http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp?storm_identifier=' + tc_code
+def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None):
+    if dload_url is None:
+        url = base_url + tc_code
+    else:
+        url = dload_url
 
     r = requests.get(url)
     if (r.status_code == 200):
@@ -58,16 +63,21 @@ def proc_tc_data(tc_code):
         df['Center'] = 'JTWC'
         df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='%Y%m%d%H%M', utc=True).dt.tz_convert('Asia/Manila')
         df.sort_values('Timestamp', inplace=True)
+        df.reset_index(drop=True, inplace=True)
         df['Date'] = df['Timestamp'].dt.strftime('%b %-d %-I %P')
         df['Cat'] = df['Vmax'].apply(knots_to_cat)
         df['Vmax'] = df['Vmax'].apply(knots_to_kph)
-        return df[['Center', 'Date', 'Lat', 'Lon', 'Vmax', 'Cat']].copy()
+        df['PosType'] = 'h'
+        df.loc[df.shape[0]-1,'PosType'] = 'c'
+        return df[['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat']].copy()
     return None
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download and process data from RAMMB')
     parser.add_argument('tc_code', help='TC Code')
     parser.add_argument('output', help='Output CSV')
+    parser.add_argument('--base-url', help='Base URL', default=BASE_URL)
+    parser.add_argument('--dload-url', help='Download URL', default=None)
     args = parser.parse_args()
-    df = proc_tc_data(args.tc_code.upper())
+    df = proc_tc_data(args.tc_code.upper(), args.base_url, args.dload_url)
     df.to_csv(args.output, index=False)

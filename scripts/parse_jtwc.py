@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import argparse
 
+BASE_URL = 'https://metoc.ndbc.noaa.gov/ProductFeeds-portlet/img/jtwc/products/'
 
 def knots_to_cat(wind_speed):
     """Converts wind speed in knots to equivalent tropical cyclone category
@@ -129,8 +130,11 @@ def parse_forecast_time(str):
     if res is not None:
         return int(res.group(1))
 
-def proc_tc_data(tc_code):
-    url = 'https://metoc.ndbc.noaa.gov/ProductFeeds-portlet/img/jtwc/products/' + tc_code + 'web.txt'
+def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None):
+    if dload_url is None:
+        url = base_url + tc_code + 'web.txt'
+    else:
+        url = dload_url
 
     r = requests.get(url)
     if (r.status_code == 200):
@@ -139,7 +143,7 @@ def proc_tc_data(tc_code):
         out_file.write(r.text)
         out_file.close()
 
-        forecast_df = pd.DataFrame(columns=['Center', 'Date', 'Lat', 'Lon', 'Vmax', 'Cat', 'R34', 'R50', 'R64'])
+        forecast_df = pd.DataFrame(columns=['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat', 'R34', 'R50', 'R64'])
         res = re.sub('\s+', ' ', r.text).strip()
         res1 = re.search('WARNING\ POSITION(.*)FORECASTS', res).group(1)
         wind_df = parse_wind_rad(res1)
@@ -148,6 +152,7 @@ def proc_tc_data(tc_code):
             'Date': 0,
             'Lat': parse_lat(res1),
             'Lon': parse_lon(res1),
+            'PosType': 'c',
             'Vmax': parse_vmax(res1),
             'R34': wind_df.loc[34],
             'R50': wind_df.loc[50],
@@ -164,6 +169,7 @@ def proc_tc_data(tc_code):
                 'Date': parse_forecast_time(res3[i]),
                 'Lat': parse_lat(s),
                 'Lon': parse_lon(s),
+                'PosType': 'f',
                 'Vmax': parse_vmax(s),
                 'R34': wind_df.loc[34] if wind_df.index.contains(34) else None,
                 'R50': wind_df.loc[50] if wind_df.index.contains(50) else None,
@@ -174,13 +180,15 @@ def proc_tc_data(tc_code):
         forecast_df['R34'] = forecast_df['R34'].apply(nm_to_km)
         forecast_df['R50'] = forecast_df['R50'].apply(nm_to_km)
         forecast_df['R64'] = forecast_df['R64'].apply(nm_to_km)
-        return forecast_df
+        return forecast_df[['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat', 'R34', 'R50', 'R64']]
     return None
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download and process data from JTWC')
     parser.add_argument('tc_code', help='TC Code')
     parser.add_argument('output', help='Output CSV')
+    parser.add_argument('--base-url', help='Base URL', default=BASE_URL)
+    parser.add_argument('--dload-url', help='Download URL', default=None)
     args = parser.parse_args()
-    df = proc_tc_data(args.tc_code.lower())
+    df = proc_tc_data(args.tc_code.lower(), args.base_url, args.dload_url)
     df.to_csv(args.output, index=False)
