@@ -1,4 +1,5 @@
 .test
 archives
 output
+tc_info.txt
 *.pyc
