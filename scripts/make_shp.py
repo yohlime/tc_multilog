@@ -17,6 +17,7 @@ def df_to_gdf(df, lat='Lat', lon='Lon'):
     return GeoDataFrame(df, crs=crs, geometry=geometry)
 
 def pts_to_line(gdf, group_by):
+    gdf = gdf.groupby(group_by).filter(lambda x: len(x) > 1)
     gdf = gdf.groupby(group_by)['geometry'].apply(lambda x: LineString(x.tolist()))
     return GeoDataFrame(gdf.reset_index(), geometry='geometry')
 
