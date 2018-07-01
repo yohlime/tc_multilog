@@ -97,7 +97,7 @@ def vmax_10min_to_1min(wind_speed_10):
     """
     return wind_speed_10 * 1.14
 
-def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[]):
+def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[], timestamp=pd.to_datetime(pd.datetime.now())):
     if dload_url is None:
         url = base_url + tc_name + '.TXT'
     else:
@@ -110,7 +110,7 @@ def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[]):
 
     r = requests.get(url)
     if (r.status_code == 200):
-        out_file_name = 'output/multi/{}_{}.TXT'.format(tc_name, pd.datetime.now().strftime('%Y%m%d_%H00'))
+        out_file_name = 'output/multi/{}_{:%Y%m%d%H}.TXT'.format(tc_name, timestamp)
         out_file = open(out_file_name, 'w')
         out_file.write(r.text)
         out_file.close()

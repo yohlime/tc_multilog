@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import argparse
 
-BASE_URL = 'https://metoc.ndbc.noaa.gov/ProductFeeds-portlet/img/jtwc/products/'
+BASE_URL = 'http://www.metoc.navy.mil/jtwc/products/'
 
 def knots_to_cat(wind_speed):
     """Converts wind speed in knots to equivalent tropical cyclone category
@@ -58,6 +58,19 @@ def nm_to_km(dist):
     """
     if dist is not None:
         return dist * 1.852
+
+def parse_time(str):
+    """Extract Timestamp information from the string
+
+    Input:
+    str (str) -- the string input
+
+    Output:
+    timestamp (str) -- timestamp
+    """
+    res = re.search('([0-9]{6})Z', str)
+    if res is not None:
+        return res.group(1)
 
 def parse_lat(str):
     """Extract latitude information from the string
@@ -130,15 +143,17 @@ def parse_forecast_time(str):
     if res is not None:
         return int(res.group(1))
 
-def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None):
+def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None, timestamp=pd.to_datetime(pd.datetime.now())):
     if dload_url is None:
         url = base_url + tc_code + 'web.txt'
     else:
         url = dload_url
+    
+    timestamp_utc = timestamp.tz_localize('Asia/Manila').tz_convert('UTC')
 
     r = requests.get(url)
     if (r.status_code == 200):
-        out_file_name = 'output/multi/{}web_{}.txt'.format(tc_code, pd.datetime.now().strftime('%Y%m%d_%H00'))
+        out_file_name = 'output/multi/{}web_{:%Y%m%d%H}.txt'.format(tc_code, timestamp)
         out_file = open(out_file_name, 'w')
         out_file.write(r.text)
         out_file.close()
@@ -146,17 +161,18 @@ def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None):
         forecast_df = pd.DataFrame(columns=['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat', 'R34', 'R50', 'R64'])
         res = re.sub('\s+', ' ', r.text).strip()
         res1 = re.search('WARNING\ POSITION(.*)FORECASTS', res).group(1)
+        date0 = pd.to_datetime(timestamp_utc.strftime('%Y%m') + parse_time(res1), format='%Y%m%d%H%M')
         wind_df = parse_wind_rad(res1)
         forecast_df = forecast_df.append({
             'Center': 'JTWC',
-            'Date': 0,
+            'Date': date0,
             'Lat': parse_lat(res1),
             'Lon': parse_lon(res1),
             'PosType': 'c',
             'Vmax': parse_vmax(res1),
-            'R34': wind_df.loc[34],
-            'R50': wind_df.loc[50],
-            'R64': wind_df.loc[64]
+            'R34': wind_df.loc[34] if wind_df.index.contains(34) else None,
+            'R50': wind_df.loc[50] if wind_df.index.contains(50) else None,
+            'R64': wind_df.loc[64] if wind_df.index.contains(64) else None
         }, ignore_index=True)
 
         res2 = re.search('FORECASTS(.*)---', res).group(1).split('---')
@@ -166,7 +182,7 @@ def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None):
             wind_df = parse_wind_rad(s)
             forecast_df = forecast_df.append({
                 'Center': 'JTWC',
-                'Date': parse_forecast_time(res3[i]),
+                'Date': date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit='H'),
                 'Lat': parse_lat(s),
                 'Lon': parse_lon(s),
                 'PosType': 'f',
@@ -175,6 +191,7 @@ def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None):
                 'R50': wind_df.loc[50] if wind_df.index.contains(50) else None,
                 'R64': wind_df.loc[64] if wind_df.index.contains(64) else None
             }, ignore_index=True)
+        forecast_df['Date'] = forecast_df['Date'].dt.tz_localize('UTC').dt.tz_convert('Asia/Manila').dt.strftime('%b %-d %-I %P')
         forecast_df['Cat'] = forecast_df['Vmax'].apply(knots_to_cat)
         forecast_df['Vmax'] = forecast_df['Vmax'].apply(knots_to_kph)
         forecast_df['R34'] = forecast_df['R34'].apply(nm_to_km)

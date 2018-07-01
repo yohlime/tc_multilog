@@ -33,7 +33,7 @@ def main(is_test=IS_TEST):
     # Load TC information
     print('Loading TC information...')
     TC_INFO = json.load(open('tc_info.txt'))
-    DATETIME_NOW = pd.datetime.now()
+    DATETIME_NOW = pd.to_datetime(pd.datetime.now())
     OUT_CSV = 'output/csv/{}_{:%Y%m%d%H}.csv'.format(TC_INFO['name'], DATETIME_NOW)
     OUT_SHP_DIR = 'output/shp/{}_{:%Y%m%d%H}/'.format(TC_INFO['name'], DATETIME_NOW)
     OUT_ZIP_FILE = 'output/{}_{:%Y%m%d%H}'.format(TC_INFO['name'], DATETIME_NOW)
@@ -57,19 +57,20 @@ def main(is_test=IS_TEST):
     else:
         out_df = empty_df.copy()
 
-    dt_str = '{} {}'.format(TC_INFO['year'], init_df.loc[init_df.shape[0]-1, 'Date'])
-    base_time = pd.to_datetime(dt_str, format='%Y %b %d %I %p')
-
     # Get forecast data from JTWC
     print('Getting forecast from JTWC...')
     tc_code = '{basin}{cy:02}{yy}'.format(yy=str(TC_INFO['year'])[2:], **TC_INFO)
     if is_test:
-        jtwc_df = get_jtwc(tc_code, base_url='http://localhost:8000/')
+        jtwc_df = get_jtwc(tc_code, base_url='http://localhost:8000/', timestamp=DATETIME_NOW)
     else:
         jtwc_df = get_jtwc(tc_code)
     if isinstance(jtwc_df, pd.DataFrame):
-        jtwc_df['Date'] = (base_time + pd.to_timedelta(jtwc_df['Date'], unit='H')).dt.strftime('%b %-d %-I %P')
-        out_df = init_df.loc[:(init_df.shape[0]-2)]
+        c_date = jtwc_df.loc[jtwc_df['PosType']=='c','Date'].values
+        if len(c_date) > 0:
+            c_date = c_date[0]
+            drop_index = out_df[out_df['Date']==c_date].index
+            if len(drop_index) > 0:
+                out_df.drop(out_df.iloc[drop_index[0]:].index, inplace=True)
         out_df = out_df.append(jtwc_df, ignore_index=True)
     else:
         out_df = out_df.append(empty_df, ignore_index=True)
@@ -79,7 +80,7 @@ def main(is_test=IS_TEST):
     print('Getting TC data from Typhoon2k...')
     tc_name = TC_INFO['name']
     if is_test:
-        t2k_df = get_t2k(tc_name, base_url='http://localhost:8000/', exclude='JTWC')
+        t2k_df = get_t2k(tc_name, base_url='http://localhost:8000/', exclude='JTWC', timestamp=DATETIME_NOW)
     else:
         t2k_df = get_t2k(tc_name, exclude='JTWC')
     if isinstance(t2k_df, pd.DataFrame):
