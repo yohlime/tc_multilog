@@ -11,6 +11,8 @@ from parse_jtwc import proc_tc_data as get_jtwc, BASE_URL as jtwc_burl
 from parse_t2k import proc_tc_data as get_t2k, BASE_URL as t2k_burl
 from make_shp import make_shp
 
+IS_TEST=False
+
 def copytree(src, dst, symlinks=False, ignore=None):
     for item in os.listdir(src):
         s = os.path.join(src, item)
@@ -27,7 +29,7 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copy2(s, d)
     #shutil.rmtree(src)
 
-def main(is_test=False):
+def main(is_test=IS_TEST):
     # Load TC information
     print('Loading TC information...')
     TC_INFO = json.load(open('tc_info.txt'))
@@ -46,8 +48,9 @@ def main(is_test=False):
     if len(csvs) > 0: # There is a csv, update it
         init_df = pd.read_csv(csvs[0])
         init_df = init_df.loc[(init_df['Center']=='JTWC') & (init_df['PosType']!='f'), OUT_COLUMNS[:7]]
+        init_df['PosType'] = 'h'
     else: # No csv, fetch data from http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp
-        init_df = get_rammb('{basin}{cy}{year}'.format(**TC_INFO).upper())
+        init_df = get_rammb('{basin}{cy:02}{year}'.format(**TC_INFO).upper())
 
     if isinstance(init_df, pd.DataFrame):
         out_df = init_df.copy()
@@ -59,7 +62,7 @@ def main(is_test=False):
 
     # Get forecast data from JTWC
     print('Getting forecast from JTWC...')
-    tc_code = '{basin}{cy}{yy}'.format(yy=str(TC_INFO['year'])[2:], **TC_INFO)
+    tc_code = '{basin}{cy:02}{yy}'.format(yy=str(TC_INFO['year'])[2:], **TC_INFO)
     if is_test:
         jtwc_df = get_jtwc(tc_code, base_url='http://localhost:8000/')
     else:
@@ -101,5 +104,5 @@ def main(is_test=False):
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    main(is_test=True)
+    main()
     
