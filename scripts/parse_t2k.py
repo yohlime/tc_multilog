@@ -110,7 +110,7 @@ def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[], timesta
 
     r = requests.get(url)
     if (r.status_code == 200):
-        out_file_name = 'output/multi/{}_{:%Y%m%d%H}.TXT'.format(tc_name, timestamp)
+        out_file_name = 'output/multi/{}_{:%Y%m%d%H}.TXT'.format(tc_name.upper(), timestamp)
         out_file = open(out_file_name, 'w')
         out_file.write(r.text)
         out_file.close()
