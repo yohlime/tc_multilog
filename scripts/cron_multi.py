@@ -11,6 +11,7 @@ from parse_jtwc import proc_tc_data as get_jtwc, BASE_URL as jtwc_burl
 from parse_t2k import proc_tc_data as get_t2k, BASE_URL as t2k_burl
 from make_shp import make_shp
 
+QGIS_DATA_DIR = '/home/modelgal/data/tc/ty_multilog/input'
 IS_TEST=False
 
 def copytree(src, dst, symlinks=False, ignore=None):
@@ -37,7 +38,6 @@ def main(is_test=IS_TEST):
     OUT_CSV = 'output/csv/{}_{:%Y%m%d%H}.csv'.format(TC_INFO['name'], DATETIME_NOW)
     OUT_SHP_DIR = 'output/shp/{}_{:%Y%m%d%H}/'.format(TC_INFO['name'], DATETIME_NOW)
     OUT_ZIP_FILE = 'output/{}_{:%Y%m%d%H}'.format(TC_INFO['name'], DATETIME_NOW)
-    QGIS_DATA_DIR = '/home/modelgal/data/tc/ty_multilog/input'
 
     OUT_COLUMNS = ['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat', 'R34', 'R50', 'R64']
     empty_df = pd.DataFrame(columns=OUT_COLUMNS)
