@@ -3,6 +3,7 @@
 import os
 import shutil
 import json
+from datetime import datetime
 from glob import glob
 import pandas as pd
 
@@ -11,8 +12,9 @@ from parse_jtwc import proc_tc_data as get_jtwc, BASE_URL as jtwc_burl
 from parse_t2k import proc_tc_data as get_t2k, BASE_URL as t2k_burl
 from make_shp import make_shp
 
-QGIS_DATA_DIR = '/home/modelgal/data/tc/ty_multilog/input'
+QGIS_DATA_DIR = "/home/modelman/public/data/tc/ty_multilog/input"
 IS_TEST=False
+
 
 def copytree(src, dst, symlinks=False, ignore=None):
     for item in os.listdir(src):
@@ -22,7 +24,7 @@ def copytree(src, dst, symlinks=False, ignore=None):
             try:
                 shutil.rmtree(d)
             except Exception as e:
-                print e
+                print(e)
                 os.unlink(d)
         if os.path.isdir(s):
             shutil.copytree(s, d, symlinks, ignore)
@@ -30,14 +32,15 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copy2(s, d)
     #shutil.rmtree(src)
 
+
 def main(is_test=IS_TEST):
     # Load TC information
     print('Loading TC information...')
     TC_INFO = json.load(open('tc_info.txt'))
-    DATETIME_NOW = pd.to_datetime(pd.datetime.now())
-    OUT_CSV = 'output/csv/{}_{:%Y%m%d%H}.csv'.format(TC_INFO['name'], DATETIME_NOW)
-    OUT_SHP_DIR = 'output/shp/{}_{:%Y%m%d%H}/'.format(TC_INFO['name'], DATETIME_NOW)
-    OUT_ZIP_FILE = 'output/{}_{:%Y%m%d%H}'.format(TC_INFO['name'], DATETIME_NOW)
+    DATETIME_NOW = pd.to_datetime(datetime.now())
+    OUT_CSV = f"output/csv/{TC_INFO['name']}_{DATETIME_NOW:%Y%m%d%H}.csv"
+    OUT_SHP_DIR = f"output/shp/{TC_INFO['name']}_{DATETIME_NOW:%Y%m%d%H}/"
+    OUT_ZIP_FILE = f"output/{TC_INFO['name']}_{DATETIME_NOW:%Y%m%d%H}"
 
     OUT_COLUMNS = ['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat', 'R34', 'R50', 'R64']
     empty_df = pd.DataFrame(columns=OUT_COLUMNS)
@@ -50,7 +53,7 @@ def main(is_test=IS_TEST):
         init_df = init_df.loc[(init_df['Center']=='JTWC') & (init_df['PosType']!='f'), OUT_COLUMNS[:7]]
         init_df['PosType'] = 'h'
     else: # No csv, fetch data from http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp
-        init_df = get_rammb('{basin}{cy:02}{year}'.format(**TC_INFO).upper())
+        init_df = get_rammb(f"{TC_INFO['basin'].lower()}{TC_INFO['cy']:02}{TC_INFO['year']}")
 
     if isinstance(init_df, pd.DataFrame):
         out_df = init_df.copy()

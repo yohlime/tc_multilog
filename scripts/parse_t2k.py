@@ -1,7 +1,13 @@
+from datetime import datetime
 import re
 import requests
 import pandas as pd
 import argparse
+try:
+    from StringIO import StringIO ## for Python 2
+except ImportError:
+    from io import StringIO ## for Python 3
+
 
 BASE_URL = 'http://www.typhoon2000.ph/multi/data/'
 
@@ -97,7 +103,7 @@ def vmax_10min_to_1min(wind_speed_10):
     """
     return wind_speed_10 * 1.14
 
-def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[], timestamp=pd.to_datetime(pd.datetime.now())):
+def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[], timestamp=pd.to_datetime(datetime.now())):
     if dload_url is None:
         url = base_url + tc_name + '.TXT'
     else:
@@ -108,7 +114,7 @@ def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[], timesta
     elif exclude is None:
         exclude = []
 
-    r = requests.get(url)
+    r = requests.get(url, headers={"User-Agent": "Chrome/34.0.1847.118"})
     if (r.status_code == 200):
         out_file_name = 'output/multi/{}_{:%Y%m%d%H}.TXT'.format(tc_name.upper(), timestamp)
         out_file = open(out_file_name, 'w')
@@ -126,7 +132,7 @@ def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[], timesta
         out_df = pd.DataFrame(columns=['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat'])
         for i, f in enumerate(info):
             if centers[i] not in exclude:
-                df = pd.read_csv(pd.compat.StringIO(re.sub('KT\ ?', '\n', f)), sep=' ', header=None, na_values='---')
+                df = pd.read_csv(StringIO(re.sub('KT\ ?', '\n', f)), sep=' ', header=None, na_values='---')
                 df.columns = ['Timestamp', 'Lat', 'Lon', 'Vmax']
                 df['Lat'] = df['Lat'].apply(parse_lat)
                 df['Lon'] = df['Lon'].apply(parse_lon)
@@ -134,7 +140,7 @@ def proc_tc_data(tc_name, base_url=BASE_URL, dload_url=None, exclude=[], timesta
                 df.loc[1:, 'Timestamp'] = df.loc[0, 'Timestamp'] + pd.to_timedelta(df.loc[1:, 'Timestamp'].apply(parse_forecast_time), unit='H')
                 df.sort_values('Timestamp', inplace=True)
                 df.reset_index(drop=True, inplace=True)
-                df['Date'] = df['Timestamp'].dt.tz_convert('Asia/Manila').dt.strftime('%b %-d %-I %P')
+                df['Date'] = pd.to_datetime(df['Timestamp']).dt.tz_convert('Asia/Manila').dt.strftime('%b %-d %-I %P')
                 df['Vmax'] = df['Vmax'].apply(vmax_10min_to_1min)
                 df['Cat'] = df['Vmax'].apply(knots_to_cat)
                 df['Vmax'] = df['Vmax'].apply(knots_to_kph)

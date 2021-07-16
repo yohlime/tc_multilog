@@ -1,3 +1,4 @@
+from datetime import datetime
 import re
 import requests
 import pandas as pd
@@ -139,11 +140,11 @@ def parse_forecast_time(str):
     Output:
     toff (int) -- forecast time in hr
     """
-    res = re.search('([0-9]{2}) HRS', str)
+    res = re.search('([0-9]{2,}) HRS', str)
     if res is not None:
         return int(res.group(1))
 
-def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None, timestamp=pd.to_datetime(pd.datetime.now())):
+def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None, timestamp=pd.to_datetime(datetime.now())):
     if dload_url is None:
         url = base_url + tc_code + 'web.txt'
     else:
@@ -151,7 +152,7 @@ def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None, timestamp=pd.to_dat
     
     timestamp_utc = timestamp.tz_localize('Asia/Manila').tz_convert('UTC')
 
-    r = requests.get(url)
+    r = requests.get(url, headers={"User-Agent": "Chrome/34.0.1847.118"})
     if (r.status_code == 200):
         out_file_name = 'output/multi/{}web_{:%Y%m%d%H}.txt'.format(tc_code, timestamp)
         out_file = open(out_file_name, 'w')
@@ -170,9 +171,9 @@ def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None, timestamp=pd.to_dat
             'Lon': parse_lon(res1),
             'PosType': 'c',
             'Vmax': parse_vmax(res1),
-            'R34': wind_df.loc[34] if wind_df.index.contains(34) else None,
-            'R50': wind_df.loc[50] if wind_df.index.contains(50) else None,
-            'R64': wind_df.loc[64] if wind_df.index.contains(64) else None
+            'R34': wind_df.loc[34] if 34 in wind_df.index else None,
+            'R50': wind_df.loc[50] if 50 in wind_df.index else None,
+            'R64': wind_df.loc[64] if 64 in wind_df.index else None
         }, ignore_index=True)
 
         res2 = re.search('FORECASTS(.*)---', res).group(1).split('---')
@@ -187,9 +188,9 @@ def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None, timestamp=pd.to_dat
                 'Lon': parse_lon(s),
                 'PosType': 'f',
                 'Vmax': parse_vmax(s),
-                'R34': wind_df.loc[34] if wind_df.index.contains(34) else None,
-                'R50': wind_df.loc[50] if wind_df.index.contains(50) else None,
-                'R64': wind_df.loc[64] if wind_df.index.contains(64) else None
+                'R34': wind_df.loc[34] if 34 in wind_df.index else None,
+                'R50': wind_df.loc[50] if 50 in wind_df.index else None,
+                'R64': wind_df.loc[64] if 64 in wind_df.index else None
             }, ignore_index=True)
         forecast_df['Date'] = forecast_df['Date'].dt.tz_localize('UTC').dt.tz_convert('Asia/Manila').dt.strftime('%b %-d %-I %P')
         forecast_df['Cat'] = forecast_df['Vmax'].apply(knots_to_cat)
