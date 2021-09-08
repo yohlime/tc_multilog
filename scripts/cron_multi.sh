@@ -8,4 +8,4 @@ $PYTHON $MAIN_DIR/scripts/cron_multi.py
 
 # Copy to QGIS directory
 echo "Copying files to QGIS directory..."
-cp -rp ${OUT_SHP_DIR} ${QGIS_DATA_DIR}
+cp -rp ${OUT_SHP_DIR}/* ${QGIS_DATA_DIR}
