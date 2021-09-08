@@ -4,61 +4,9 @@ import requests
 import pandas as pd
 import argparse
 
-BASE_URL = 'http://www.metoc.navy.mil/jtwc/products/'
+from _const_ import JTWC_BASE_URL, REQ_HEADER
+from _helper_ import knots_to_cat, knots_to_kph, nm_to_km, parse_lat, parse_lon
 
-def knots_to_cat(wind_speed):
-    """Converts wind speed in knots to equivalent tropical cyclone category
-    based on Saffir-Simpson scale
-
-    Input:
-    wind_speed (int) -- wind speed in knots
-
-    Output:
-    cat (str) -- TC category
-    """
-    if wind_speed != wind_speed:
-        return ''
-    cat = ''
-    if wind_speed < 15:
-        cat = ''
-    elif wind_speed <= 33:
-        cat = 'TD'
-    elif wind_speed <= 63:
-        cat = 'TS'
-    elif wind_speed <= 82:
-        cat = '1'
-    elif wind_speed <= 95:
-        cat = '2'
-    elif wind_speed <= 112:
-        cat = '3'
-    elif wind_speed <= 136:
-        cat = '4'
-    else:
-        cat = '5'
-    return cat
-
-def knots_to_kph(wind_speed):
-    """Converts wind speed in knots to kph
-
-    Input:
-    wind_speed (int) -- wind speed in knots
-
-    Output:
-    kph (float) -- wind speed in kph
-    """
-    return wind_speed * 1.852
-
-def nm_to_km(dist):
-    """Converts nautical mile to kilometer
-
-    Input:
-    dist (int) -- distance in nm
-
-    Output:
-    km (float) -- distance in km
-    """
-    if dist is not None:
-        return dist * 1.852
 
 def parse_time(str):
     """Extract Timestamp information from the string
@@ -69,35 +17,10 @@ def parse_time(str):
     Output:
     timestamp (str) -- timestamp
     """
-    res = re.search('([0-9]{6})Z', str)
+    res = re.search("([0-9]{6})Z", str)
     if res is not None:
         return res.group(1)
 
-def parse_lat(str):
-    """Extract latitude information from the string
-
-    Input:
-    str (str) -- the string input
-
-    Output:
-    lat (float) -- latitude in degrees
-    """
-    res = re.search('([0-9]+\.[0-9]+)[NS]', str)
-    if res is not None:
-        return float(res.group(1))
-
-def parse_lon(str):
-    """Extract longitude information from the string
-
-    Input:
-    str (str) -- the string input
-
-    Output:
-    lon (float) -- longitude in degrees
-    """
-    res = re.search('([0-9]+\.[0-9]+)[WE]', str)
-    if res is not None:
-        return float(res.group(1))
 
 def parse_vmax(str):
     """Extract maximum sustained wind speed from the string
@@ -108,9 +31,10 @@ def parse_vmax(str):
     Output:
     vmax (int) -- maximum sustained winds in knots
     """
-    res = re.search('MAX\ SUSTAINED\ WINDS\ - ([0-9]*)\ KT', str)
+    res = re.search("MAX\ SUSTAINED\ WINDS\ - ([0-9]*)\ KT", str)
     if res is not None:
         return int(res.group(1))
+
 
 def parse_wind_rad(str):
     """Extract wind radius from the string
@@ -121,15 +45,20 @@ def parse_wind_rad(str):
     Output:
     rad_wind (pandas.core.series.Series) -- series containing wind information
     """
-    wind_df = pd.DataFrame(columns=['WRAD', 'NORTHEAST', 'SOUTHEAST', 'SOUTHWEST', 'NORTHWEST'])
-    for m in re.finditer('RADIUS OF ([0-9]*) KT WINDS - ([0-9]* NM [A-Z]{9} QUADRANT ){1,4}', str):
-        d = {'WRAD': int(m.group(1))}
-        str2 = str[m.start():m.end()]
-        for n in re.finditer('([0-9]*) NM ([A-Z]{9}) QUADRANT', str2):
+    wind_df = pd.DataFrame(
+        columns=["WRAD", "NORTHEAST", "SOUTHEAST", "SOUTHWEST", "NORTHWEST"]
+    )
+    for m in re.finditer(
+        "RADIUS OF ([0-9]*) KT WINDS - ([0-9]* NM [A-Z]{9} QUADRANT ){1,4}", str
+    ):
+        d = {"WRAD": int(m.group(1))}
+        str2 = str[m.start() : m.end()]
+        for n in re.finditer("([0-9]*) NM ([A-Z]{9}) QUADRANT", str2):
             d[n.group(2)] = int(n.group(1))
         wind_df = wind_df.append(d, ignore_index=True)
-    wind_df.set_index('WRAD', inplace=True)
+    wind_df.set_index("WRAD", inplace=True)
     return wind_df.max(axis=1)
+
 
 def parse_forecast_time(str):
     """Extract forecast time from the string
@@ -140,73 +69,125 @@ def parse_forecast_time(str):
     Output:
     toff (int) -- forecast time in hr
     """
-    res = re.search('([0-9]{2,}) HRS', str)
+    res = re.search("([0-9]{2,}) HRS", str)
     if res is not None:
         return int(res.group(1))
 
-def proc_tc_data(tc_code, base_url=BASE_URL, dload_url=None, timestamp=pd.to_datetime(datetime.now())):
+
+def proc_tc_data(
+    tc_code,
+    base_url=JTWC_BASE_URL,
+    dload_url=None,
+    timestamp=pd.to_datetime(datetime.now()),
+    raw_out_dir=None,
+):
     if dload_url is None:
-        url = base_url + tc_code + 'web.txt'
+        url = base_url + tc_code + "web.txt"
     else:
         url = dload_url
-    
-    timestamp_utc = timestamp.tz_localize('Asia/Manila').tz_convert('UTC')
 
-    r = requests.get(url, headers={"User-Agent": "Chrome/34.0.1847.118"})
-    if (r.status_code == 200):
-        out_file_name = 'output/multi/{}web_{:%Y%m%d%H}.txt'.format(tc_code, timestamp)
-        out_file = open(out_file_name, 'w')
-        out_file.write(r.text)
-        out_file.close()
+    timestamp_utc = timestamp.tz_localize("Asia/Manila").tz_convert("UTC")
 
-        forecast_df = pd.DataFrame(columns=['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat', 'R34', 'R50', 'R64'])
-        res = re.sub('\s+', ' ', r.text).strip()
-        res1 = re.search('WARNING\ POSITION(.*)FORECASTS', res).group(1)
-        date0 = pd.to_datetime(timestamp_utc.strftime('%Y%m') + parse_time(res1), format='%Y%m%d%H%M')
+    r = requests.get(
+        url,
+        headers=REQ_HEADER,
+    )
+    if r.status_code == 200:
+        if raw_out_dir is not None:
+            out_file_name = raw_out_dir / f"{tc_code}web_{timestamp:%Y%m%d%H}.txt"
+            out_file = open(out_file_name, "w")
+            out_file.write(r.text)
+            out_file.close()
+
+        forecast_df = pd.DataFrame(
+            columns=[
+                "Center",
+                "Date",
+                "Lat",
+                "Lon",
+                "PosType",
+                "Vmax",
+                "Cat",
+                "R34",
+                "R50",
+                "R64",
+            ]
+        )
+        res = re.sub("\s+", " ", r.text).strip()
+        res1 = re.search("WARNING\ POSITION(.*)FORECASTS", res).group(1)
+        date0 = pd.to_datetime(
+            timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M"
+        )
         wind_df = parse_wind_rad(res1)
-        forecast_df = forecast_df.append({
-            'Center': 'JTWC',
-            'Date': date0,
-            'Lat': parse_lat(res1),
-            'Lon': parse_lon(res1),
-            'PosType': 'c',
-            'Vmax': parse_vmax(res1),
-            'R34': wind_df.loc[34] if 34 in wind_df.index else None,
-            'R50': wind_df.loc[50] if 50 in wind_df.index else None,
-            'R64': wind_df.loc[64] if 64 in wind_df.index else None
-        }, ignore_index=True)
+        forecast_df = forecast_df.append(
+            {
+                "Center": "JTWC",
+                "Date": date0,
+                "Lat": parse_lat(res1),
+                "Lon": parse_lon(res1),
+                "PosType": "c",
+                "Vmax": parse_vmax(res1),
+                "R34": wind_df.loc[34] if 34 in wind_df.index else None,
+                "R50": wind_df.loc[50] if 50 in wind_df.index else None,
+                "R64": wind_df.loc[64] if 64 in wind_df.index else None,
+            },
+            ignore_index=True,
+        )
 
-        res2 = re.search('FORECASTS(.*)---', res).group(1).split('---')
-        res3 = [s for s in res2 if re.search('HRS', s)]
-        res4 = [s for s in res2 if re.search('WIND', s)]
+        res2 = re.search("FORECASTS(.*)---", res).group(1).split("---")
+        res3 = [s for s in res2 if re.search("HRS", s)]
+        res4 = [s for s in res2 if re.search("WIND", s)]
         for i, s in enumerate(res4):
             wind_df = parse_wind_rad(s)
-            forecast_df = forecast_df.append({
-                'Center': 'JTWC',
-                'Date': date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit='H'),
-                'Lat': parse_lat(s),
-                'Lon': parse_lon(s),
-                'PosType': 'f',
-                'Vmax': parse_vmax(s),
-                'R34': wind_df.loc[34] if 34 in wind_df.index else None,
-                'R50': wind_df.loc[50] if 50 in wind_df.index else None,
-                'R64': wind_df.loc[64] if 64 in wind_df.index else None
-            }, ignore_index=True)
-        forecast_df['Date'] = forecast_df['Date'].dt.tz_localize('UTC').dt.tz_convert('Asia/Manila').dt.strftime('%b %-d %-I %P')
-        forecast_df['Cat'] = forecast_df['Vmax'].apply(knots_to_cat)
-        forecast_df['Vmax'] = forecast_df['Vmax'].apply(knots_to_kph)
-        forecast_df['R34'] = forecast_df['R34'].apply(nm_to_km)
-        forecast_df['R50'] = forecast_df['R50'].apply(nm_to_km)
-        forecast_df['R64'] = forecast_df['R64'].apply(nm_to_km)
-        return forecast_df[['Center', 'Date', 'Lat', 'Lon', 'PosType', 'Vmax', 'Cat', 'R34', 'R50', 'R64']]
+            forecast_df = forecast_df.append(
+                {
+                    "Center": "JTWC",
+                    "Date": date0
+                    + pd.to_timedelta(parse_forecast_time(res3[i]), unit="H"),
+                    "Lat": parse_lat(s),
+                    "Lon": parse_lon(s),
+                    "PosType": "f",
+                    "Vmax": parse_vmax(s),
+                    "R34": wind_df.loc[34] if 34 in wind_df.index else None,
+                    "R50": wind_df.loc[50] if 50 in wind_df.index else None,
+                    "R64": wind_df.loc[64] if 64 in wind_df.index else None,
+                },
+                ignore_index=True,
+            )
+        forecast_df["Date"] = (
+            forecast_df["Date"]
+            .dt.tz_localize("UTC")
+            .dt.tz_convert("Asia/Manila")
+            .dt.strftime("%b %-d %-I %P")
+        )
+        forecast_df["Cat"] = forecast_df["Vmax"].apply(knots_to_cat)
+        forecast_df["Vmax"] = forecast_df["Vmax"].apply(knots_to_kph)
+        forecast_df["R34"] = forecast_df["R34"].apply(nm_to_km)
+        forecast_df["R50"] = forecast_df["R50"].apply(nm_to_km)
+        forecast_df["R64"] = forecast_df["R64"].apply(nm_to_km)
+        return forecast_df[
+            [
+                "Center",
+                "Date",
+                "Lat",
+                "Lon",
+                "PosType",
+                "Vmax",
+                "Cat",
+                "R34",
+                "R50",
+                "R64",
+            ]
+        ]
     return None
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Download and process data from JTWC')
-    parser.add_argument('tc_code', help='TC Code')
-    parser.add_argument('output', help='Output CSV')
-    parser.add_argument('--base-url', help='Base URL', default=BASE_URL)
-    parser.add_argument('--dload-url', help='Download URL', default=None)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Download and process data from JTWC")
+    parser.add_argument("tc_code", help="TC Code")
+    parser.add_argument("output", help="Output CSV")
+    parser.add_argument("--base-url", help="Base URL", default=JTWC_BASE_URL)
+    parser.add_argument("--dload-url", help="Download URL", default=None)
     args = parser.parse_args()
     df = proc_tc_data(args.tc_code.lower(), args.base_url, args.dload_url)
     df.to_csv(args.output, index=False)
