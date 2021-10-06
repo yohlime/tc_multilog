@@ -79,7 +79,7 @@ def parse_lat(str):
     Output:
     lat (float) -- latitude in degrees
     """
-    res = re.search("([0-9]+\.[0-9]+)[NS]", str)
+    res = re.search(r"([0-9]+\.[0-9]+)[NS]", str)
     if res is not None:
         return float(res.group(1))
 
@@ -93,6 +93,6 @@ def parse_lon(str):
     Output:
     lon (float) -- longitude in degrees
     """
-    res = re.search("([0-9]+\.[0-9]+)[WE]", str)
+    res = re.search(r"([0-9]+\.[0-9]+)[WE]", str)
     if res is not None:
         return float(res.group(1))

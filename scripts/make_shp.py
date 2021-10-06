@@ -31,13 +31,9 @@ def make_shp(in_file, out_dir=OUTPUT_DIR):
     df = pd.read_csv(in_file)
     row_to_insert = df[(df["Center"] == "JTWC") & (df["PosType"] == "c")].copy()
     if row_to_insert.shape[0] == 1:
-        row_split_index = df[
-            (df["Center"] == "JTWC") & (df["PosType"] == "c")
-        ].index.values[0]
+        row_split_index = df[(df["Center"] == "JTWC") & (df["PosType"] == "c")].index.values[0]
         row_to_insert["Center"] = "JTWC_forecast"
-        df.loc[
-            (df["Center"] == "JTWC") & (df["PosType"] == "f"), "Center"
-        ] = "JTWC_forecast"
+        df.loc[(df["Center"] == "JTWC") & (df["PosType"] == "f"), "Center"] = "JTWC_forecast"
         df2 = df.iloc[0 : row_split_index + 1].append(row_to_insert, ignore_index=True)
         df = df2.append(df.iloc[row_split_index + 1 :], ignore_index=True)
 
@@ -63,8 +59,6 @@ def make_shp(in_file, out_dir=OUTPUT_DIR):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create SHP files from CSV")
     parser.add_argument("input", help="Input CSV")
-    parser.add_argument(
-        "--out-dir", help="Output directory of the shp files", default=OUTPUT_DIR
-    )
+    parser.add_argument("--out-dir", help="Output directory of the shp files", default=OUTPUT_DIR)
     args = parser.parse_args()
     make_shp(args.input, args.out_dir)

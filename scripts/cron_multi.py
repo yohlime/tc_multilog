@@ -17,17 +17,11 @@ def main():
     # Load TC information
     print("Loading TC information...")
     DATETIME_NOW = pd.to_datetime(datetime.now())
-    OUT_CSV = (
-        Path(CONFIG["OUT_DIR"]) / f"csv/{CONFIG['TC_NAME']}_{DATETIME_NOW:%Y%m%d%H}.csv"
-    )
+    OUT_CSV = Path(CONFIG["OUT_DIR"]) / f"csv/{CONFIG['TC_NAME']}_{DATETIME_NOW:%Y%m%d%H}.csv"
     OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
-    OUT_SHP_DIR = (
-        Path(CONFIG["OUT_DIR"]) / f"shp/{CONFIG['TC_NAME']}_{DATETIME_NOW:%Y%m%d%H}/"
-    )
+    OUT_SHP_DIR = Path(CONFIG["OUT_DIR"]) / f"shp/{CONFIG['TC_NAME']}_{DATETIME_NOW:%Y%m%d%H}/"
     OUT_SHP_DIR.mkdir(parents=True, exist_ok=True)
-    OUT_ZIP_FILE = (
-        Path(CONFIG["OUT_DIR"]) / f"{CONFIG['TC_NAME']}_{DATETIME_NOW:%Y%m%d%H}"
-    )
+    OUT_ZIP_FILE = Path(CONFIG["OUT_DIR"]) / f"{CONFIG['TC_NAME']}_{DATETIME_NOW:%Y%m%d%H}"
     OUT_ZIP_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     OUT_COLUMNS = [
@@ -47,9 +41,7 @@ def main():
     # Initialize the csv
     print("Initializing CSV...")
     # fetch data from http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp
-    init_df = get_rammb(
-        f"{CONFIG['TC_BASIN'].lower()}{CONFIG['TC_CY'].rjust(2, '0')}{CONFIG['TC_YEAR']}"
-    )
+    init_df = get_rammb(f"{CONFIG['TC_BASIN'].lower()}{CONFIG['TC_CY'].rjust(2, '0')}{CONFIG['TC_YEAR']}")
     if not isinstance(init_df, pd.DataFrame):
         csvs = sorted(OUT_CSV.parent.glob("*.csv"), key=os.path.getmtime, reverse=True)
         if len(csvs) > 0:  # There is a csv, update it
@@ -69,9 +61,7 @@ def main():
 
     # Get forecast data from JTWC
     print("Getting forecast from JTWC...")
-    tc_code = (
-        f"{CONFIG['TC_BASIN']}{CONFIG['TC_CY'].rjust(2, '0')}{CONFIG['TC_YEAR'][2:]}"
-    )
+    tc_code = f"{CONFIG['TC_BASIN']}{CONFIG['TC_CY'].rjust(2, '0')}{CONFIG['TC_YEAR'][2:]}"
     jtwc_df = get_jtwc(tc_code, raw_out_dir=raw_out_dir)
     if isinstance(jtwc_df, pd.DataFrame):
         c_date = jtwc_df.loc[jtwc_df["PosType"] == "c", "Date"].values

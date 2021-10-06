@@ -1,6 +1,4 @@
-RAMMB_BASE_URL = (
-    "http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp?storm_identifier="
-)
+RAMMB_BASE_URL = "http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp?storm_identifier="
 
 JTWC_BASE_URL = "http://www.metoc.navy.mil/jtwc/products/"
 

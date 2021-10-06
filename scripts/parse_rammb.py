@@ -60,18 +60,14 @@ def proc_tc_data(tc_code, base_url=RAMMB_BASE_URL, dload_url=None):
     r = requests.get(url, headers=REQ_HEADER)
     if r.status_code == 200:
         soup = BeautifulSoup(r.text, "lxml")
-        tab = soup.find("h3", text=re.compile("Track History")).find_next_sibling(
-            "table"
-        )
+        tab = soup.find("h3", text=re.compile(r"Track History")).find_next_sibling("table")
         if tab is None:
             return None
         df = pd.read_html(str(tab), header=0)[0]
         df.columns = ["Timestamp", "Lat", "Lon", "Vmax"]
         df["Center"] = "JTWC"
         # df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='%Y%m%d%H%M', utc=True).dt.tz_convert('Asia/Manila')
-        df["Timestamp"] = pd.to_datetime(df["Timestamp"], utc=True).dt.tz_convert(
-            "Asia/Manila"
-        )
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"], utc=True).dt.tz_convert("Asia/Manila")
         df.sort_values("Timestamp", inplace=True)
         df.reset_index(drop=True, inplace=True)
         df["Date"] = df["Timestamp"].dt.strftime("%b %-d %-I %P")

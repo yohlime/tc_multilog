@@ -4,10 +4,7 @@ import requests
 import pandas as pd
 import argparse
 
-try:
-    from StringIO import StringIO  # for Python 2
-except ImportError:
-    from io import StringIO  # for Python 3
+from io import StringIO
 
 from _const_ import T2K_BASE_URL, REQ_HEADER
 from _helper_ import (
@@ -59,27 +56,19 @@ def proc_tc_data(
             out_file.write(r.text)
             out_file.close()
 
-        res = re.sub("\s+", " ", r.text).strip()
+        res = re.sub(r"\s+", " ", r.text).strip()
 
-        update_time = pd.to_datetime(re.search("\((.*UTC)\)", res).group(1))
+        update_time = pd.to_datetime(re.search(r"\((.*UTC)\)", res).group(1))
 
-        res1 = re.search("=+(.*)", res).group(1).strip().split(":")
-        centers = [
-            re.search("[A-Z]{3,}", s).group(0)
-            for s in res1
-            if re.match(".*[A-Z]{3,}", s)
-        ]
-        info = [
-            re.search(".*KT", s).group(0).strip() for s in res1 if re.match(".*KT", s)
-        ]
+        res1 = re.search(r"=+(.*)", res).group(1).strip().split(":")
+        centers = [re.search(r"[A-Z]{3,}", s).group(0) for s in res1 if re.match(r".*[A-Z]{3,}", s)]
+        info = [re.search(r".*KT", s).group(0).strip() for s in res1 if re.match(r".*KT", s)]
 
-        out_df = pd.DataFrame(
-            columns=["Center", "Date", "Lat", "Lon", "PosType", "Vmax", "Cat"]
-        )
+        out_df = pd.DataFrame(columns=["Center", "Date", "Lat", "Lon", "PosType", "Vmax", "Cat"])
         for i, f in enumerate(info):
             if centers[i] not in exclude:
                 df = pd.read_csv(
-                    StringIO(re.sub("KT\ ?", "\n", f)),
+                    StringIO(re.sub(r"KT\ ?", "\n", f)),
                     sep=" ",
                     header=None,
                     na_values="---",
@@ -97,11 +86,7 @@ def proc_tc_data(
                 )
                 df.sort_values("Timestamp", inplace=True)
                 df.reset_index(drop=True, inplace=True)
-                df["Date"] = (
-                    pd.to_datetime(df["Timestamp"])
-                    .dt.tz_convert("Asia/Manila")
-                    .dt.strftime("%b %-d %-I %P")
-                )
+                df["Date"] = pd.to_datetime(df["Timestamp"]).dt.tz_convert("Asia/Manila").dt.strftime("%b %-d %-I %P")
                 df["Vmax"] = df["Vmax"].apply(vmax_10min_to_1min)
                 df["Cat"] = df["Vmax"].apply(knots_to_cat)
                 df["Vmax"] = df["Vmax"].apply(knots_to_kph)
@@ -114,9 +99,7 @@ def proc_tc_data(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Download and process data from Typhoon2000"
-    )
+    parser = argparse.ArgumentParser(description="Download and process data from Typhoon2000")
     parser.add_argument("tc_name", help="TC international name")
     parser.add_argument("output", help="Output CSV")
     parser.add_argument("--base-url", help="Base URL", default=T2K_BASE_URL)

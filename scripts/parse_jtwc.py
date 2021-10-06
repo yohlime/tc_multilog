@@ -17,7 +17,7 @@ def parse_time(str):
     Output:
     timestamp (str) -- timestamp
     """
-    res = re.search("([0-9]{6})Z", str)
+    res = re.search(r"([0-9]{6})Z", str)
     if res is not None:
         return res.group(1)
 
@@ -31,7 +31,7 @@ def parse_vmax(str):
     Output:
     vmax (int) -- maximum sustained winds in knots
     """
-    res = re.search("MAX\ SUSTAINED\ WINDS\ - ([0-9]*)\ KT", str)
+    res = re.search(r"MAX\ SUSTAINED\ WINDS\ - ([0-9]*)\ KT", str)
     if res is not None:
         return int(res.group(1))
 
@@ -45,15 +45,11 @@ def parse_wind_rad(str):
     Output:
     rad_wind (pandas.core.series.Series) -- series containing wind information
     """
-    wind_df = pd.DataFrame(
-        columns=["WRAD", "NORTHEAST", "SOUTHEAST", "SOUTHWEST", "NORTHWEST"]
-    )
-    for m in re.finditer(
-        "RADIUS OF ([0-9]*) KT WINDS - ([0-9]* NM [A-Z]{9} QUADRANT ){1,4}", str
-    ):
+    wind_df = pd.DataFrame(columns=["WRAD", "NORTHEAST", "SOUTHEAST", "SOUTHWEST", "NORTHWEST"])
+    for m in re.finditer(r"RADIUS OF ([0-9]*) KT WINDS - ([0-9]* NM [A-Z]{9} QUADRANT ){1,4}", str):
         d = {"WRAD": int(m.group(1))}
         str2 = str[m.start() : m.end()]
-        for n in re.finditer("([0-9]*) NM ([A-Z]{9}) QUADRANT", str2):
+        for n in re.finditer(r"([0-9]*) NM ([A-Z]{9}) QUADRANT", str2):
             d[n.group(2)] = int(n.group(1))
         wind_df = wind_df.append(d, ignore_index=True)
     wind_df.set_index("WRAD", inplace=True)
@@ -69,7 +65,7 @@ def parse_forecast_time(str):
     Output:
     toff (int) -- forecast time in hr
     """
-    res = re.search("([0-9]{2,}) HRS", str)
+    res = re.search(r"([0-9]{2,}) HRS", str)
     if res is not None:
         return int(res.group(1))
 
@@ -113,11 +109,9 @@ def proc_tc_data(
                 "R64",
             ]
         )
-        res = re.sub("\s+", " ", r.text).strip()
-        res1 = re.search("WARNING\ POSITION(.*)FORECASTS", res).group(1)
-        date0 = pd.to_datetime(
-            timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M"
-        )
+        res = re.sub(r"\s+", " ", r.text).strip()
+        res1 = re.search(r"WARNING\ POSITION(.*)FORECASTS", res).group(1)
+        date0 = pd.to_datetime(timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M")
         wind_df = parse_wind_rad(res1)
         forecast_df = forecast_df.append(
             {
@@ -134,16 +128,15 @@ def proc_tc_data(
             ignore_index=True,
         )
 
-        res2 = re.search("FORECASTS(.*)---", res).group(1).split("---")
-        res3 = [s for s in res2 if re.search("HRS", s)]
-        res4 = [s for s in res2 if re.search("WIND", s)]
+        res2 = re.search(r"FORECASTS(.*)---", res).group(1).split("---")
+        res3 = [s for s in res2 if re.search(r"HRS", s)]
+        res4 = [s for s in res2 if re.search(r"WIND", s)]
         for i, s in enumerate(res4):
             wind_df = parse_wind_rad(s)
             forecast_df = forecast_df.append(
                 {
                     "Center": "JTWC",
-                    "Date": date0
-                    + pd.to_timedelta(parse_forecast_time(res3[i]), unit="H"),
+                    "Date": date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit="H"),
                     "Lat": parse_lat(s),
                     "Lon": parse_lon(s),
                     "PosType": "f",
@@ -155,10 +148,7 @@ def proc_tc_data(
                 ignore_index=True,
             )
         forecast_df["Date"] = (
-            forecast_df["Date"]
-            .dt.tz_localize("UTC")
-            .dt.tz_convert("Asia/Manila")
-            .dt.strftime("%b %-d %-I %P")
+            forecast_df["Date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Manila").dt.strftime("%b %-d %-I %P")
         )
         forecast_df["Cat"] = forecast_df["Vmax"].apply(knots_to_cat)
         forecast_df["Vmax"] = forecast_df["Vmax"].apply(knots_to_kph)
