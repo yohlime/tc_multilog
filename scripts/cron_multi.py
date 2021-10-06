@@ -10,6 +10,8 @@ from parse_jtwc import proc_tc_data as get_jtwc
 from parse_t2k import proc_tc_data as get_t2k
 from make_shp import make_shp
 
+from _const_ import JTWC_BASE_URL, T2K_BASE_URL
+
 CONFIG = dotenv_values()
 
 
@@ -40,17 +42,16 @@ def main():
 
     # Initialize the csv
     print("Initializing CSV...")
-    # fetch data from http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp
-    init_df = get_rammb(f"{CONFIG['TC_BASIN'].lower()}{CONFIG['TC_CY'].rjust(2, '0')}{CONFIG['TC_YEAR']}")
-    if not isinstance(init_df, pd.DataFrame):
-        csvs = sorted(OUT_CSV.parent.glob("*.csv"), key=os.path.getmtime, reverse=True)
-        if len(csvs) > 0:  # There is a csv, update it
-            init_df = pd.read_csv(csvs[0])
-            init_df = init_df.loc[
-                (init_df["Center"] == "JTWC") & (init_df["PosType"] != "f"),
-                OUT_COLUMNS[:7],
-            ]
-            init_df["PosType"] = "h"
+    init_df = empty_df.copy()
+    csvs = sorted(OUT_CSV.parent.glob("*.csv"), key=os.path.getmtime, reverse=True)
+
+    if len(csvs) > 0:  # There is a csv, update it
+        init_df = pd.read_csv(csvs[0])
+        init_df = init_df.loc[init_df["PosType"] != "f", OUT_COLUMNS[:7]].copy()
+        init_df["PosType"] = "h"
+    else:
+        # fetch data from http://rammb.cira.colostate.edu/products/tc_realtime/storm.asp
+        init_df = get_rammb(f"{CONFIG['TC_BASIN'].lower()}{CONFIG['TC_CY'].rjust(2, '0')}{CONFIG['TC_YEAR']}")
 
     if isinstance(init_df, pd.DataFrame):
         out_df = init_df.copy()
@@ -62,14 +63,13 @@ def main():
     # Get forecast data from JTWC
     print("Getting forecast from JTWC...")
     tc_code = f"{CONFIG['TC_BASIN']}{CONFIG['TC_CY'].rjust(2, '0')}{CONFIG['TC_YEAR'][2:]}"
-    jtwc_df = get_jtwc(tc_code, raw_out_dir=raw_out_dir)
+    in_file = JTWC_BASE_URL + tc_code + "web.txt"
+    jtwc_df = get_jtwc(in_file, tc_code, raw_out_dir=raw_out_dir)
     if isinstance(jtwc_df, pd.DataFrame):
         c_date = jtwc_df.loc[jtwc_df["PosType"] == "c", "Date"].values
         if len(c_date) > 0:
             c_date = c_date[0]
-            drop_index = out_df[out_df["Date"] == c_date].index
-            if len(drop_index) > 0:
-                out_df.drop(out_df.iloc[drop_index[0] :].index, inplace=True)
+            out_df = out_df.loc[~((out_df["Center"] == "JTWC") & (out_df["Date"] == c_date))].copy()
         out_df = out_df.append(jtwc_df, ignore_index=True)
     else:
         out_df = out_df.append(empty_df, ignore_index=True)
@@ -77,8 +77,14 @@ def main():
     # Get multilog from Typhoon2000
     print("Getting TC data from Typhoon2k...")
     tc_name = CONFIG["TC_NAME"]
-    t2k_df = get_t2k(tc_name, exclude="JTWC", raw_out_dir=raw_out_dir)
+    in_file = T2K_BASE_URL + tc_name + ".TXT"
+    t2k_df = get_t2k(in_file, tc_name, exclude="JTWC", raw_out_dir=raw_out_dir)
     if isinstance(t2k_df, pd.DataFrame):
+        for center_name in t2k_df["Center"].unique():
+            c_date = jtwc_df.loc[t2k_df["PosType"] == "c", "Date"].values
+            if len(c_date) > 0:
+                c_date = c_date[0]
+                out_df = out_df.loc[~((out_df["Center"] == center_name) & (out_df["Date"] == c_date))].copy()
         out_df = out_df.append(t2k_df, ignore_index=True)
     else:
         out_df = out_df.append(empty_df, ignore_index=True)

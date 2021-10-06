@@ -2,9 +2,8 @@ from datetime import datetime
 import re
 import requests
 import pandas as pd
-import argparse
 
-from _const_ import JTWC_BASE_URL, REQ_HEADER
+from _const_ import REQ_HEADER
 from _helper_ import knots_to_cat, knots_to_kph, nm_to_km, parse_lat, parse_lon
 
 
@@ -71,113 +70,122 @@ def parse_forecast_time(str):
 
 
 def proc_tc_data(
+    in_file,
     tc_code,
-    base_url=JTWC_BASE_URL,
-    dload_url=None,
-    timestamp=pd.to_datetime(datetime.now()),
+    timestamp=None,
+    mode="download",
     raw_out_dir=None,
 ):
-    if dload_url is None:
-        url = base_url + tc_code + "web.txt"
-    else:
-        url = dload_url
+    """Parse tropical cyclone data from JTWC warning
+
+    Args:
+        in_file (str): Valid download url or local file path
+        tc_code (str): TC code '{BASIN}{CY}{yy}'
+        timestamp (pandas.Timestamp, optional): Required if mode is 'local'. Defaults to None.
+        mode (str, optional): 'download' or 'local'. Defaults to "download".
+        raw_out_dir (str, optional): Directory where the downloaded raw txt will be stored.
+            Ignored in 'local' mode. Defaults to None.
+
+    Returns:
+        pandas.Dataframe
+    """
+    if timestamp is None:
+        if mode == "local":
+            raise ValueError("'timestamp' should be supplied for 'local' mode")
+        else:
+            timestamp = pd.to_datetime(datetime.now())
 
     timestamp_utc = timestamp.tz_localize("Asia/Manila").tz_convert("UTC")
 
-    r = requests.get(
-        url,
-        headers=REQ_HEADER,
-    )
-    if r.status_code == 200:
+    data = ""
+    if mode == "download":
+        r = requests.get(in_file, headers=REQ_HEADER)
+        if r.status_code != 200:
+            return None
+        data = r.text
         if raw_out_dir is not None:
             out_file_name = raw_out_dir / f"{tc_code}web_{timestamp:%Y%m%d%H}.txt"
             out_file = open(out_file_name, "w")
-            out_file.write(r.text)
+            out_file.write(data)
             out_file.close()
+    elif mode == "local":
+        text_file = open(in_file, "r")
+        data = text_file.read()
+        text_file.close()
+    else:
+        return None
 
-        forecast_df = pd.DataFrame(
-            columns=[
-                "Center",
-                "Date",
-                "Lat",
-                "Lon",
-                "PosType",
-                "Vmax",
-                "Cat",
-                "R34",
-                "R50",
-                "R64",
-            ]
-        )
-        res = re.sub(r"\s+", " ", r.text).strip()
-        res1 = re.search(r"WARNING\ POSITION(.*)FORECASTS", res).group(1)
-        date0 = pd.to_datetime(timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M")
-        wind_df = parse_wind_rad(res1)
+    forecast_df = pd.DataFrame(
+        columns=[
+            "Center",
+            "Date",
+            "Lat",
+            "Lon",
+            "PosType",
+            "Vmax",
+            "Cat",
+            "R34",
+            "R50",
+            "R64",
+        ]
+    )
+    res = re.sub(r"\s+", " ", data).strip()
+    res1 = re.search(r"WARNING\ POSITION(.*)FORECASTS", res).group(1)
+    date0 = pd.to_datetime(timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M")
+    wind_df = parse_wind_rad(res1)
+    forecast_df = forecast_df.append(
+        {
+            "Center": "JTWC",
+            "Date": date0,
+            "Lat": parse_lat(res1),
+            "Lon": parse_lon(res1),
+            "PosType": "c",
+            "Vmax": parse_vmax(res1),
+            "R34": wind_df.loc[34] if 34 in wind_df.index else None,
+            "R50": wind_df.loc[50] if 50 in wind_df.index else None,
+            "R64": wind_df.loc[64] if 64 in wind_df.index else None,
+        },
+        ignore_index=True,
+    )
+
+    res2 = re.search(r"FORECASTS(.*)---", res).group(1).split("---")
+    res3 = [s for s in res2 if re.search(r"HRS", s)]
+    res4 = [s for s in res2 if re.search(r"WIND", s)]
+    for i, s in enumerate(res4):
+        wind_df = parse_wind_rad(s)
         forecast_df = forecast_df.append(
             {
                 "Center": "JTWC",
-                "Date": date0,
-                "Lat": parse_lat(res1),
-                "Lon": parse_lon(res1),
-                "PosType": "c",
-                "Vmax": parse_vmax(res1),
+                "Date": date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit="H"),
+                "Lat": parse_lat(s),
+                "Lon": parse_lon(s),
+                "PosType": "f",
+                "Vmax": parse_vmax(s),
                 "R34": wind_df.loc[34] if 34 in wind_df.index else None,
                 "R50": wind_df.loc[50] if 50 in wind_df.index else None,
                 "R64": wind_df.loc[64] if 64 in wind_df.index else None,
             },
             ignore_index=True,
         )
-
-        res2 = re.search(r"FORECASTS(.*)---", res).group(1).split("---")
-        res3 = [s for s in res2 if re.search(r"HRS", s)]
-        res4 = [s for s in res2 if re.search(r"WIND", s)]
-        for i, s in enumerate(res4):
-            wind_df = parse_wind_rad(s)
-            forecast_df = forecast_df.append(
-                {
-                    "Center": "JTWC",
-                    "Date": date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit="H"),
-                    "Lat": parse_lat(s),
-                    "Lon": parse_lon(s),
-                    "PosType": "f",
-                    "Vmax": parse_vmax(s),
-                    "R34": wind_df.loc[34] if 34 in wind_df.index else None,
-                    "R50": wind_df.loc[50] if 50 in wind_df.index else None,
-                    "R64": wind_df.loc[64] if 64 in wind_df.index else None,
-                },
-                ignore_index=True,
-            )
-        forecast_df["Date"] = (
-            forecast_df["Date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Manila").dt.strftime("%b %-d %-I %P")
-        )
-        forecast_df["Cat"] = forecast_df["Vmax"].apply(knots_to_cat)
-        forecast_df["Vmax"] = forecast_df["Vmax"].apply(knots_to_kph)
-        forecast_df["R34"] = forecast_df["R34"].apply(nm_to_km)
-        forecast_df["R50"] = forecast_df["R50"].apply(nm_to_km)
-        forecast_df["R64"] = forecast_df["R64"].apply(nm_to_km)
-        return forecast_df[
-            [
-                "Center",
-                "Date",
-                "Lat",
-                "Lon",
-                "PosType",
-                "Vmax",
-                "Cat",
-                "R34",
-                "R50",
-                "R64",
-            ]
+    forecast_df["Date"] = (
+        forecast_df["Date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Manila").dt.strftime("%b %-d %-I %P")
+    )
+    forecast_df["Cat"] = forecast_df["Vmax"].apply(knots_to_cat)
+    forecast_df["Vmax"] = forecast_df["Vmax"].apply(knots_to_kph)
+    forecast_df["R34"] = forecast_df["R34"].apply(nm_to_km)
+    forecast_df["R50"] = forecast_df["R50"].apply(nm_to_km)
+    forecast_df["R64"] = forecast_df["R64"].apply(nm_to_km)
+    return forecast_df[
+        [
+            "Center",
+            "Date",
+            "Lat",
+            "Lon",
+            "PosType",
+            "Vmax",
+            "Cat",
+            "R34",
+            "R50",
+            "R64",
         ]
-    return None
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Download and process data from JTWC")
-    parser.add_argument("tc_code", help="TC Code")
-    parser.add_argument("output", help="Output CSV")
-    parser.add_argument("--base-url", help="Base URL", default=JTWC_BASE_URL)
-    parser.add_argument("--dload-url", help="Download URL", default=None)
-    args = parser.parse_args()
-    df = proc_tc_data(args.tc_code.lower(), args.base_url, args.dload_url)
-    df.to_csv(args.output, index=False)
+    ]
