@@ -1,12 +1,64 @@
 from pathlib import Path
+import numpy as np
 import pandas as pd
 from geopandas import GeoDataFrame, points_from_xy
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Polygon
+from scipy.optimize import curve_fit
 import argparse
+
 
 OUTPUT_DIR = Path("output/shp")
 
 PROJ_CRS = 4326
+
+
+def generate_envelope(pts_gdf, main_src="JTWC"):
+    gdf = pts_gdf.loc[pts_gdf["Center"].str.contains("forecast")].copy()
+    gdf["ts"] = pd.to_datetime(gdf["Date"], format="%b %d %I %p")
+    gdf.sort_values(["Center", "ts"], inplace=True)
+    gdf.drop(columns="ts", inplace=True)
+
+    main_pts = gdf.loc[gdf["Center"].str.contains(main_src)].reset_index(drop=True).copy()
+
+    bnd_pts1 = []
+    bnd_pts2 = []
+    for i, r in main_pts.iterrows():
+        if i == 0:
+            u = np.array(r.geometry.coords[0])
+            bnd_pts1.append(u)
+            bnd_pts2.append(u)
+            continue
+
+        # slope m of tangent line at current point
+        X = np.array([pt.coords[0][0] for pt in main_pts.iloc[i - 1 : i + 2].geometry])
+        Y = np.array([pt.coords[0][1] for pt in main_pts.iloc[i - 1 : i + 2].geometry])
+        u = np.array(r.geometry.coords[0])
+        (m,), pcov = curve_fit(lambda x, m: m * (x - u[0]) + u[1], X, Y)
+
+        # unit vector normal to the current point
+        n = np.array((1, -1 / m))
+        n_hat = n / np.linalg.norm(n)
+
+        pts = gdf.loc[gdf["Date"] == r["Date"]].copy()
+        X = np.array([pt.coords[0][0] for pt in pts.geometry])
+        Y = np.array([pt.coords[0][1] for pt in pts.geometry])
+        if len(X) == 1:
+            continue
+        # projection to the normal line
+        d = np.array([np.dot(pt - u, n_hat) for pt in zip(X, Y)])
+
+        # keep only the edges
+        bnd_pts1.append(u + d.min() * n_hat)
+        bnd_pts2.append(u + d.max() * n_hat)
+
+    return GeoDataFrame(
+        [
+            {"name": main_src, "geometry": LineString(main_pts.geometry)},
+            {"name": "bndln1", "geometry": LineString(bnd_pts1)},
+            {"name": "bndln2", "geometry": LineString(bnd_pts2)},
+            {"name": "bnd", "geometry": Polygon(bnd_pts1 + bnd_pts2[::-1])},
+        ]
+    )
 
 
 def add_radius(gdf, radius):
@@ -31,20 +83,25 @@ def make_shp(in_file, out_dir=OUTPUT_DIR):
 
     # df to gdf pts
     geom = points_from_xy(df["Lon"], df["Lat"], crs=PROJ_CRS)
-    gdf_pts = GeoDataFrame(df.copy(), crs=PROJ_CRS, geometry=geom)
+    pts_gdf = GeoDataFrame(df.copy(), crs=PROJ_CRS, geometry=geom)
     _out_dir = out_dir / "track_pts"
     _out_dir.mkdir(parents=True, exist_ok=True)
-    gdf_pts.to_file(_out_dir)
+    pts_gdf.to_file(_out_dir)
 
     # connect the dots
-    gdf_lns = gdf_pts.copy().groupby("Center").filter(lambda x: len(x) > 1)
-    gdf_lns = gdf_lns.groupby("Center")["geometry"].apply(lambda x: LineString(x.tolist()))
-    gdf_lns = GeoDataFrame(gdf_lns.reset_index(), geometry="geometry", crs=PROJ_CRS)
+    lns_gdf = pts_gdf.copy().groupby("Center").filter(lambda x: len(x) > 1)
+    lns_gdf = lns_gdf.groupby("Center")["geometry"].apply(lambda x: LineString(x.tolist()))
+    lns_gdf = GeoDataFrame(lns_gdf.reset_index(), geometry="geometry", crs=PROJ_CRS)
     _out_dir = out_dir / "track_line"
     _out_dir.mkdir(parents=True, exist_ok=True)
-    gdf_lns.to_file(_out_dir)
+    lns_gdf.to_file(_out_dir)
 
-    gdf_rad = gdf_pts[gdf_pts["Center"] == "JTWC_forecast"].copy()
+    bnds_gdf = generate_envelope(pts_gdf, main_src="JTWC")
+    _out_dir = out_dir / "track_bnds"
+    _out_dir.mkdir(parents=True, exist_ok=True)
+    bnds_gdf.to_file(_out_dir)
+
+    gdf_rad = pts_gdf[pts_gdf["Center"] == "JTWC_forecast"].copy()
     for r in ["R34", "R50", "R64"]:
         s = add_radius(gdf_rad, r)
         if s is not None:
