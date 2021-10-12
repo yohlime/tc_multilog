@@ -95,7 +95,7 @@ def main():
 
     # Create SHP
     print("Creating SHPs...")
-    make_shp(OUT_CSV, OUT_SHP_DIR)
+    make_shp(OUT_CSV, OUT_SHP_DIR, main_track=CONFIG["MAIN_TRACK"])
     shutil.make_archive(OUT_ZIP_FILE, "zip", OUT_SHP_DIR)
 
 

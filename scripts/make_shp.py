@@ -12,13 +12,13 @@ OUTPUT_DIR = Path("output/shp")
 PROJ_CRS = 4326
 
 
-def generate_envelope(pts_gdf, main_src="JTWC"):
+def generate_envelope(pts_gdf, main_track="JTWC"):
     gdf = pts_gdf.loc[pts_gdf["Center"].str.contains("forecast")].copy()
     gdf["ts"] = pd.to_datetime(gdf["Date"], format="%b %d %I %p")
     gdf.sort_values(["Center", "ts"], inplace=True)
     gdf.drop(columns="ts", inplace=True)
 
-    main_pts = gdf.loc[gdf["Center"].str.contains(main_src)].reset_index(drop=True).copy()
+    main_pts = gdf.loc[gdf["Center"].str.contains(main_track)].reset_index(drop=True).copy()
 
     bnd_pts1 = []
     bnd_pts2 = []
@@ -54,7 +54,7 @@ def generate_envelope(pts_gdf, main_src="JTWC"):
 
     return GeoDataFrame(
         [
-            {"name": main_src, "geometry": LineString(main_pts.geometry)},
+            {"name": main_track, "geometry": LineString(main_pts.geometry)},
             {"name": "bndln1", "geometry": LineString(bnd_pts1)},
             {"name": "bndln2", "geometry": LineString(bnd_pts2)},
             {"name": "bnd", "geometry": Polygon(bnd_pts1 + bnd_pts2[::-1])},
@@ -71,7 +71,7 @@ def add_radius(gdf, radius):
     return None
 
 
-def make_shp(in_file, out_dir=OUTPUT_DIR):
+def make_shp(in_file, out_dir=OUTPUT_DIR, main_track="JTWC"):
     df = pd.read_csv(in_file)
     for center_name in df["Center"].unique():
         row_to_insert = df[(df["Center"] == center_name) & (df["PosType"] == "c")].copy()
@@ -97,7 +97,7 @@ def make_shp(in_file, out_dir=OUTPUT_DIR):
     _out_dir.mkdir(parents=True, exist_ok=True)
     lns_gdf.to_file(_out_dir)
 
-    bnds_gdf = generate_envelope(pts_gdf, main_src="JTWC")
+    bnds_gdf = generate_envelope(pts_gdf, main_track=main_track)
     _out_dir = out_dir / "track_bnds"
     _out_dir.mkdir(parents=True, exist_ok=True)
     bnds_gdf.to_file(_out_dir)
