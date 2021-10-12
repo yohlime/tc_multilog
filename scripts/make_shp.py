@@ -34,6 +34,7 @@ def generate_envelope(pts_gdf, main_src="JTWC"):
         Y = np.array([pt.coords[0][1] for pt in main_pts.iloc[i - 1 : i + 2].geometry])
         u = np.array(r.geometry.coords[0])
         (m,), pcov = curve_fit(lambda x, m: m * (x - u[0]) + u[1], X, Y)
+        m = np.abs(m)
 
         # unit vector normal to the current point
         n = np.array((1, -1 / m))
