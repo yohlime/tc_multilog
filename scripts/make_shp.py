@@ -58,7 +58,6 @@ def generate_track_envelope(pts_gdf, main_track="JTWC"):
     return (
         GeoDataFrame(
             [
-                {"name": main_track, "geometry": LineString(main_pts.geometry)},
                 {"name": "bndln1", "geometry": LineString(bnd_pts1[0])},
                 {"name": "bndln2", "geometry": LineString(bnd_pts1[1])},
             ],
