@@ -71,7 +71,6 @@ def generate_track_envelope(pts_gdf, main_track="JTWC"):
         ),
         GeoDataFrame(
             [
-                {"name": main_track, "geometry": LineString(main_pts.geometry)},
                 {"name": "bndln1", "geometry": LineString(bnd_pts2[0])},
                 {"name": "bndln2", "geometry": LineString(bnd_pts2[1])},
             ],
@@ -86,22 +85,22 @@ def generate_track_envelope(pts_gdf, main_track="JTWC"):
     )
 
 
-def generate_radius_envelope(pts_gdf):
+def generate_radius_envelope(pts_gdf, main_track="JTWC"):
     gdf = pts_gdf.loc[pts_gdf["Center"].str.contains("forecast")].copy()
     gdf["ts"] = pd.to_datetime(gdf["Date"], format="%b %d %I %p")
     gdf.sort_values(["Center", "ts"], inplace=True)
     gdf.drop(columns="ts", inplace=True)
 
-    jtwc_pts = gdf.loc[gdf["Center"].str.contains("JTWC")].reset_index(drop=True).copy()
+    main_pts = gdf.loc[gdf["Center"].str.contains(main_track)].reset_index(drop=True).copy()
     bnd_r = {k: [[], []] for k in ["R34", "R50", "R64"]}
-    for i, r in jtwc_pts.iterrows():
+    for i, r in main_pts.iterrows():
         i_min = i - 1
         if i == 0:
             i_min = i
         i_max = i + 2
         # slope m of tangent line at current point
-        X = np.array([pt.coords[0][0] for pt in jtwc_pts.iloc[i_min:i_max].geometry])
-        Y = np.array([pt.coords[0][1] for pt in jtwc_pts.iloc[i_min:i_max].geometry])
+        X = np.array([pt.coords[0][0] for pt in main_pts.iloc[i_min:i_max].geometry])
+        Y = np.array([pt.coords[0][1] for pt in main_pts.iloc[i_min:i_max].geometry])
         u = np.array(r.geometry.coords[0])
         (m,), pcov = curve_fit(lambda x, m: m * (x - u[0]) + u[1], X, Y)
         m = np.abs(m)
@@ -160,7 +159,7 @@ def make_shp(in_file, out_dir=OUTPUT_DIR, main_track="JTWC"):
     lns_gdf.to_file(_out_dir)
 
     # generate envelope from multitrack
-    track_bnds = generate_track_envelope(pts_gdf, main_track=main_track)
+    track_bnds = generate_track_envelope(pts_gdf, main_track)
     for i, track_bnd in enumerate(track_bnds):
         if (i % 2) == 0:
             _out_dir = out_dir / f"track_bnds/line{int(i/2)+1}"
@@ -183,7 +182,7 @@ def make_shp(in_file, out_dir=OUTPUT_DIR, main_track="JTWC"):
             _s.to_file(_out_dir)
 
     # generate envelope from wind radii
-    rad_bnds = generate_radius_envelope(pts_gdf)
+    rad_bnds = generate_radius_envelope(pts_gdf, main_track)
     _out_dir = out_dir / "track_bnds/wind_radii"
     _out_dir.mkdir(parents=True, exist_ok=True)
     rad_bnds.to_file(_out_dir)
