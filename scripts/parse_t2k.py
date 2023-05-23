@@ -1,18 +1,11 @@
-from datetime import datetime
 import re
-import requests
-import pandas as pd
-
+from datetime import datetime
 from io import StringIO
 
+import pandas as pd
+import requests
 from _const_ import REQ_HEADER
-from _helper_ import (
-    knots_to_cat,
-    knots_to_kph,
-    vmax_10min_to_1min,
-    parse_lat,
-    parse_lon,
-)
+from _helper_ import knots_to_cat, knots_to_kph, parse_lat, parse_lon, vmax_10min_to_1min
 
 
 def parse_forecast_time(str):
@@ -103,5 +96,5 @@ def proc_tc_data(
             df["Center"] = centers[i]
             df["PosType"] = "f"
             df.loc[0, "PosType"] = "c"
-            out_df = out_df.append(df, ignore_index=True)
+            out_df = pd.concat([out_df, df], ignore_index=True)
     return out_df[["Center", "Date", "Lat", "Lon", "PosType", "Vmax", "Cat"]]

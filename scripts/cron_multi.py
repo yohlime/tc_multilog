@@ -2,15 +2,14 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
+
 import pandas as pd
-from dotenv import dotenv_values
-
-from parse_rammb import proc_tc_data as get_rammb
-from parse_jtwc import proc_tc_data as get_jtwc
-from parse_t2k import proc_tc_data as get_t2k
-from make_shp import make_shp
-
 from _const_ import JTWC_BASE_URL, T2K_BASE_URL
+from dotenv import dotenv_values
+from make_shp import make_shp
+from parse_jtwc import proc_tc_data as get_jtwc
+from parse_rammb import proc_tc_data as get_rammb
+from parse_t2k import proc_tc_data as get_t2k
 
 CONFIG = dotenv_values()
 
@@ -70,9 +69,9 @@ def main():
         if len(c_date) > 0:
             c_date = c_date[0]
             out_df = out_df.loc[~((out_df["Center"] == "JTWC") & (out_df["Date"] == c_date))].copy()
-        out_df = out_df.append(jtwc_df, ignore_index=True)
+        out_df = pd.concat([out_df, jtwc_df], ignore_index=True)
     else:
-        out_df = out_df.append(empty_df, ignore_index=True)
+        out_df = pd.concat([out_df, empty_df], ignore_index=True)
 
     # Get multilog from Typhoon2000
     print("Getting TC data from Typhoon2k...")
@@ -85,9 +84,9 @@ def main():
             if len(c_date) > 0:
                 c_date = c_date[0]
                 out_df = out_df.loc[~((out_df["Center"] == center_name) & (out_df["Date"] == c_date))].copy()
-        out_df = out_df.append(t2k_df, ignore_index=True)
+        out_df = pd.concat([out_df, t2k_df], ignore_index=True)
     else:
-        out_df = out_df.append(empty_df, ignore_index=True)
+        out_df = pd.concat([out_df, empty_df], ignore_index=True)
 
     # Save CSV
     print("Saving CSV...")

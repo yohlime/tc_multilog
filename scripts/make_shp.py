@@ -1,11 +1,11 @@
+import argparse
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from geopandas import GeoDataFrame, points_from_xy
-from shapely.geometry import LineString, Polygon
 from scipy.optimize import curve_fit
-import argparse
-
+from shapely.geometry import LineString, Polygon
 
 OUTPUT_DIR = Path("output/shp")
 
@@ -115,12 +115,14 @@ def generate_radius_envelope(pts_gdf, main_track="JTWC"):
                 bnd_r[k][0].append(u + d_r * n_hat)
                 bnd_r[k][1].append(u - d_r * n_hat)
 
-    bnd_r = GeoDataFrame(
-        [{"name": k, "geometry": Polygon(v[0] + v[1][::-1])} for k, v in bnd_r.items() if len(v[0]) > 0],
-        crs=PROJ_CRS,
-    )
+    bnd_r = [{"name": k, "geometry": Polygon(v[0] + v[1][::-1])} for k, v in bnd_r.items() if len(v[0]) > 0]
+    if len(bnd_r) > 0:
+        return GeoDataFrame(
+            bnd_r,
+            crs=PROJ_CRS,
+        )
 
-    return bnd_r
+    return None
 
 
 def generate_radius(gdf, radius):
@@ -140,8 +142,8 @@ def make_shp(in_file, out_dir=OUTPUT_DIR, main_track="JTWC"):
             row_split_index = df[(df["Center"] == center_name) & (df["PosType"] == "c")].index.values[0]
             row_to_insert["Center"] = f"{center_name}_forecast"
             df.loc[(df["Center"] == center_name) & (df["PosType"] == "f"), "Center"] = f"{center_name}_forecast"
-            df2 = df.iloc[0 : row_split_index + 1].append(row_to_insert, ignore_index=True)
-            df = df2.append(df.iloc[row_split_index + 1 :], ignore_index=True)
+            df2 = pd.concat([df.iloc[0 : row_split_index + 1], row_to_insert], ignore_index=True)
+            df = pd.concat([df2, df.iloc[row_split_index + 1 :]], ignore_index=True)
 
     # generate spatial points from dataframe
     geom = points_from_xy(df["Lon"], df["Lat"], crs=PROJ_CRS)
@@ -183,9 +185,10 @@ def make_shp(in_file, out_dir=OUTPUT_DIR, main_track="JTWC"):
 
     # generate envelope from wind radii
     rad_bnds = generate_radius_envelope(pts_gdf, main_track)
-    _out_dir = out_dir / "track_bnds/wind_radii"
-    _out_dir.mkdir(parents=True, exist_ok=True)
-    rad_bnds.to_file(_out_dir)
+    if rad_bnds is not None:
+        _out_dir = out_dir / "track_bnds/wind_radii"
+        _out_dir.mkdir(parents=True, exist_ok=True)
+        rad_bnds.to_file(_out_dir)
 
 
 if __name__ == "__main__":

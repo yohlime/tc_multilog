@@ -1,8 +1,8 @@
-from datetime import datetime
 import re
-import requests
-import pandas as pd
+from datetime import datetime
 
+import pandas as pd
+import requests
 from _const_ import REQ_HEADER
 from _helper_ import knots_to_cat, knots_to_kph, nm_to_km, parse_lat, parse_lon
 
@@ -45,12 +45,15 @@ def parse_wind_rad(str):
     rad_wind (pandas.core.series.Series) -- series containing wind information
     """
     wind_df = pd.DataFrame(columns=["WRAD", "NORTHEAST", "SOUTHEAST", "SOUTHWEST", "NORTHWEST"])
+    wind_arr = []
     for m in re.finditer(r"RADIUS OF ([0-9]*) KT WINDS - ([0-9]* NM [A-Z]{9} QUADRANT ){1,4}", str):
         d = {"WRAD": int(m.group(1))}
         str2 = str[m.start() : m.end()]
         for n in re.finditer(r"([0-9]*) NM ([A-Z]{9}) QUADRANT", str2):
             d[n.group(2)] = int(n.group(1))
-        wind_df = wind_df.append(d, ignore_index=True)
+        wind_arr.append(d)
+        # wind_df = pd.concat([wind_df, pd.DataFrame(d, index=0)], ignore_index=True)
+    wind_df = pd.concat([wind_df, pd.DataFrame(wind_arr)], ignore_index=True)
     wind_df.set_index("WRAD", inplace=True)
     return wind_df.max(axis=1)
 
@@ -133,27 +136,35 @@ def proc_tc_data(
     res1 = re.search(r"WARNING\ POSITION(.*)FORECASTS", res).group(1)
     date0 = pd.to_datetime(timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M")
     wind_df = parse_wind_rad(res1)
-    forecast_df = forecast_df.append(
-        {
-            "Center": "JTWC",
-            "Date": date0,
-            "Lat": parse_lat(res1),
-            "Lon": parse_lon(res1),
-            "PosType": "c",
-            "Vmax": parse_vmax(res1),
-            "R34": wind_df.loc[34] if 34 in wind_df.index else None,
-            "R50": wind_df.loc[50] if 50 in wind_df.index else None,
-            "R64": wind_df.loc[64] if 64 in wind_df.index else None,
-        },
+    forecast_df = pd.concat(
+        [
+            forecast_df,
+            pd.DataFrame(
+                [
+                    {
+                        "Center": "JTWC",
+                        "Date": date0,
+                        "Lat": parse_lat(res1),
+                        "Lon": parse_lon(res1),
+                        "PosType": "c",
+                        "Vmax": parse_vmax(res1),
+                        "R34": wind_df.loc[34] if 34 in wind_df.index else None,
+                        "R50": wind_df.loc[50] if 50 in wind_df.index else None,
+                        "R64": wind_df.loc[64] if 64 in wind_df.index else None,
+                    }
+                ]
+            ),
+        ],
         ignore_index=True,
     )
 
     res2 = re.search(r"FORECASTS(.*)---", res).group(1).split("---")
     res3 = [s for s in res2 if re.search(r"HRS", s)]
     res4 = [s for s in res2 if re.search(r"WIND", s)]
+    forecast_arr = []
     for i, s in enumerate(res4):
         wind_df = parse_wind_rad(s)
-        forecast_df = forecast_df.append(
+        forecast_arr.append(
             {
                 "Center": "JTWC",
                 "Date": date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit="H"),
@@ -164,9 +175,10 @@ def proc_tc_data(
                 "R34": wind_df.loc[34] if 34 in wind_df.index else None,
                 "R50": wind_df.loc[50] if 50 in wind_df.index else None,
                 "R64": wind_df.loc[64] if 64 in wind_df.index else None,
-            },
-            ignore_index=True,
+            }
         )
+
+    forecast_df = pd.concat([forecast_df, pd.DataFrame(forecast_arr)], ignore_index=True)
     forecast_df["Date"] = (
         forecast_df["Date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Manila").dt.strftime("%b %-d %-I %P")
     )

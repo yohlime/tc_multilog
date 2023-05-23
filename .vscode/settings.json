@@ -1,5 +1,8 @@
 {
     "python.pythonPath": "/home/miniconda3/envs/toolbox/bin/python",
     "editor.formatOnSave": true,
-    "python.formatting.provider": "black",
+    "python.formatting.provider": "none",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
 }
