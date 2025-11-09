@@ -5,50 +5,7 @@ import pandas as pd
 import argparse
 
 from _const_ import RAMMB_BASE_URL, REQ_HEADER
-
-
-def knots_to_cat(wind_speed):
-    """Converts wind speed in knots to equivalent tropical cyclone category
-    based on Saffir-Simpson scale
-
-    Input:
-    wind_speed (int) -- wind speed in knots
-
-    Output:
-    cat (str) -- TC category
-    """
-    if wind_speed != wind_speed:
-        return ""
-    cat = ""
-    if wind_speed < 15:
-        cat = ""
-    elif wind_speed <= 33:
-        cat = "TD"
-    elif wind_speed <= 63:
-        cat = "TS"
-    elif wind_speed <= 82:
-        cat = "1"
-    elif wind_speed <= 95:
-        cat = "2"
-    elif wind_speed <= 112:
-        cat = "3"
-    elif wind_speed <= 136:
-        cat = "4"
-    else:
-        cat = "5"
-    return cat
-
-
-def knots_to_kph(wind_speed):
-    """Converts wind speed in knots to kph
-
-    Input:
-    wind_speed (int) -- wind speed in knots
-
-    Output:
-    kph (float) -- wind speed in kph
-    """
-    return wind_speed * 1.852
+from _helper_ import knots_to_cat, knots_to_kph
 
 
 def proc_tc_data(tc_code, base_url=RAMMB_BASE_URL, dload_url=None):
@@ -60,14 +17,18 @@ def proc_tc_data(tc_code, base_url=RAMMB_BASE_URL, dload_url=None):
     r = requests.get(url, headers=REQ_HEADER)
     if r.status_code == 200:
         soup = BeautifulSoup(r.text, "lxml")
-        tab = soup.find("h3", text=re.compile(r"Track History")).find_next_sibling("table")
+        tab = soup.find("h3", text=re.compile(r"Track History")).find_next_sibling(
+            "table"
+        )
         if tab is None:
             return None
         df = pd.read_html(str(tab), header=0)[0]
         df.columns = ["Timestamp", "Lat", "Lon", "Vmax"]
         df["Center"] = "JTWC"
         # df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='%Y%m%d%H%M', utc=True).dt.tz_convert('Asia/Manila')
-        df["Timestamp"] = pd.to_datetime(df["Timestamp"], utc=True).dt.tz_convert("Asia/Manila")
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"], utc=True).dt.tz_convert(
+            "Asia/Manila"
+        )
         df.sort_values("Timestamp", inplace=True)
         df.reset_index(drop=True, inplace=True)
         df["Date"] = df["Timestamp"].dt.strftime("%b %-d %-I %P")

@@ -44,9 +44,13 @@ def parse_wind_rad(str):
     Output:
     rad_wind (pandas.core.series.Series) -- series containing wind information
     """
-    wind_df = pd.DataFrame(columns=["WRAD", "NORTHEAST", "SOUTHEAST", "SOUTHWEST", "NORTHWEST"])
+    wind_df = pd.DataFrame(
+        columns=["WRAD", "NORTHEAST", "SOUTHEAST", "SOUTHWEST", "NORTHWEST"]
+    )
     wind_arr = []
-    for m in re.finditer(r"RADIUS OF ([0-9]*) KT WINDS - ([0-9]* NM [A-Z]{9} QUADRANT ){1,4}", str):
+    for m in re.finditer(
+        r"RADIUS OF ([0-9]*) KT WINDS - ([0-9]* NM [A-Z]{9} QUADRANT ){1,4}", str
+    ):
         d = {"WRAD": int(m.group(1))}
         str2 = str[m.start() : m.end()]
         for n in re.finditer(r"([0-9]*) NM ([A-Z]{9}) QUADRANT", str2):
@@ -134,7 +138,9 @@ def proc_tc_data(
     )
     res = re.sub(r"\s+", " ", data).strip()
     res1 = re.search(r"WARNING\ POSITION(.*)FORECASTS", res).group(1)
-    date0 = pd.to_datetime(timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M")
+    date0 = pd.to_datetime(
+        timestamp_utc.strftime("%Y%m") + parse_time(res1), format="%Y%m%d%H%M"
+    )
     wind_df = parse_wind_rad(res1)
     forecast_df = pd.concat(
         [
@@ -178,9 +184,14 @@ def proc_tc_data(
             }
         )
 
-    forecast_df = pd.concat([forecast_df, pd.DataFrame(forecast_arr)], ignore_index=True)
+    forecast_df = pd.concat(
+        [forecast_df, pd.DataFrame(forecast_arr)], ignore_index=True
+    )
     forecast_df["Date"] = (
-        forecast_df["Date"].dt.tz_localize("UTC").dt.tz_convert("Asia/Manila").dt.strftime("%b %-d %-I %P")
+        forecast_df["Date"]
+        .dt.tz_localize("UTC")
+        .dt.tz_convert("Asia/Manila")
+        .dt.strftime("%b %-d %-I %P")
     )
     forecast_df["Cat"] = forecast_df["Vmax"].apply(knots_to_cat)
     forecast_df["Vmax"] = forecast_df["Vmax"].apply(knots_to_kph)
