@@ -24,11 +24,16 @@ def main():
         "cy": int(CONFIG.get("TC_CY", "1")),
         "basin": CONFIG.get("TC_BASIN", "wp").lower(),
     }
+
     out_dir = Path(CONFIG.get("OUT_DIR", "output"))
     out_dir.mkdir(parents=True, exist_ok=True)
+
     out_csv = out_dir / f"csv/{tc_info['name']}_{dt_now:%Y%m%d%H}.csv"
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+
     out_shp_dir = out_dir / f"shp/{tc_info['name']}_{dt_now:%Y%m%d%H}/"
     out_shp_dir.mkdir(parents=True, exist_ok=True)
+
     out_zip = out_dir / f"{tc_info['name']}_{dt_now:%Y%m%d%H}"
     out_zip.parent.mkdir(parents=True, exist_ok=True)
 
