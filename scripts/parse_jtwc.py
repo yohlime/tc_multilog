@@ -173,7 +173,7 @@ def proc_tc_data(
         forecast_arr.append(
             {
                 "Center": "JTWC",
-                "Date": date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit="H"),
+                "Date": date0 + pd.to_timedelta(parse_forecast_time(res3[i]), unit="h"),
                 "Lat": parse_lat(s),
                 "Lon": parse_lon(s),
                 "PosType": "f",

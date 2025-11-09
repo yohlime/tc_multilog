@@ -5,7 +5,13 @@ from io import StringIO
 import pandas as pd
 import requests
 from _const_ import REQ_HEADER
-from _helper_ import knots_to_cat, knots_to_kph, parse_lat, parse_lon, vmax_10min_to_1min
+from _helper_ import (
+    knots_to_cat,
+    knots_to_kph,
+    parse_lat,
+    parse_lon,
+    vmax_10min_to_1min,
+)
 
 
 def parse_forecast_time(str):
@@ -64,10 +70,16 @@ def proc_tc_data(
     update_time = pd.to_datetime(re.search(r"\((.*UTC)\)", res).group(1))
 
     res1 = re.search(r"=+(.*)", res).group(1).strip().split(":")
-    centers = [re.search(r"[A-Z]{3,}", s).group(0) for s in res1 if re.match(r".*[A-Z]{3,}", s)]
-    info = [re.search(r".*KT", s).group(0).strip() for s in res1 if re.match(r".*KT", s)]
+    centers = [
+        re.search(r"[A-Z]{3,}", s).group(0) for s in res1 if re.match(r".*[A-Z]{3,}", s)
+    ]
+    info = [
+        re.search(r".*KT", s).group(0).strip() for s in res1 if re.match(r".*KT", s)
+    ]
 
-    out_df = pd.DataFrame(columns=["Center", "Date", "Lat", "Lon", "PosType", "Vmax", "Cat"])
+    out_df = pd.DataFrame(
+        columns=["Center", "Date", "Lat", "Lon", "PosType", "Vmax", "Cat"]
+    )
     for i, f in enumerate(info):
         if centers[i] not in exclude:
             df = pd.read_csv(
@@ -85,11 +97,15 @@ def proc_tc_data(
                 utc=True,
             )
             df.loc[1:, "Timestamp"] = df.loc[0, "Timestamp"] + pd.to_timedelta(
-                df.loc[1:, "Timestamp"].apply(parse_forecast_time), unit="H"
+                df.loc[1:, "Timestamp"].apply(parse_forecast_time), unit="h"
             )
             df.sort_values("Timestamp", inplace=True)
             df.reset_index(drop=True, inplace=True)
-            df["Date"] = pd.to_datetime(df["Timestamp"]).dt.tz_convert("Asia/Manila").dt.strftime("%b %-d %-I %P")
+            df["Date"] = (
+                pd.to_datetime(df["Timestamp"])
+                .dt.tz_convert("Asia/Manila")
+                .dt.strftime("%b %-d %-I %P")
+            )
             df["Vmax"] = df["Vmax"].apply(vmax_10min_to_1min)
             df["Cat"] = df["Vmax"].apply(knots_to_cat)
             df["Vmax"] = df["Vmax"].apply(knots_to_kph)
