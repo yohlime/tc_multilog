@@ -69,6 +69,14 @@ def generate_track_envelope(pts_gdf, main_track="JTWC"):
         bnd_pts2[0].append(u + d_proj.min() * n_hat)
         bnd_pts2[1].append(u + d_proj.max() * n_hat)
 
+    if (
+        (len(bnd_pts1[0]) < 2)
+        or (len(bnd_pts1[1]) < 2)
+        or (len(bnd_pts2[0]) < 2)
+        or (len(bnd_pts2[1]) < 2)
+    ):
+        return ()
+
     return (
         GeoDataFrame(
             [
